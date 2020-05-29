@@ -1,0 +1,13 @@
+import statistics
+n = 10
+values = []
+for i in range(n):
+    t0 = time.time()
+    cars_move_data(60,100,1,60,90,600,False)
+    t1 = time.time()
+
+    total_n = t1-t0
+    values.append(total_n)
+print(values)
+print(sum(values)/n)
+print(statistics.stdev(values)/np.sqrt(n))
