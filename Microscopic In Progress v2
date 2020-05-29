@@ -1,0 +1,76 @@
+''''''
+#Work by M.Clifton
+#Create model sensor array 
+#26/02/20
+#Work here unused in later model iterations
+''''''
+
+import numpy as np
+from scipy import signal
+from scipy.fftpack import fft, fftshift
+import matplotlib.pyplot as plt
+import pandas as pd
+
+sensor_pos = np.linspace(0, 10, num=21)
+d = sensor_pos.tolist()
+print(d)
+print(d[1])
+
+num = np.linspace(0, 20, num=21)
+print(num)
+
+#defines car as point-like object moving at velocity v
+
+def car(v, a, min):
+    
+    
+    x0 = np.random.randint(-10000,10000)/1000 #km
+    t = (min/60) #hours
+    x = x0 + v*t +0.5*a*t*t
+    
+    return x0, x
+    
+
+
+    
+    
+    
+
+#outputs array determining if car has passed sensor in timeframe t
+
+
+def sensor(v, a, min):
+    x0 = np.random.randint(-10000,10000)/1000 #km
+    t = (min/60) #hours
+    x = x0 + v*t +0.5*a*t*t
+    
+    
+    y = []
+    for i in d:
+        if x0 <= i <= x:
+            y.append(1)
+        else:
+            y.append(0)
+    return np.asarray(y)
+
+def flow(v_min, v_max, a, min, cars):
+
+    p = 0
+    for x in range(0,cars):
+        v = np.random.randint(v_min, v_max)
+        p = sensor(v, a, min) + p
+        
+    print(p)
+        
+        
+  #aggregate speed function, needs expanding with car behaviour and aggregated speed for each sensor
+
+def agg_speed(v_min, v_max, cars):
+    xS = 0.5 #km
+    sum = 0
+    for x in range(0, cars):
+        v = np.random.randint(v_min, v_max)
+        sum = sum + v
+        
+    v_avg = sum/cars
+    return v_avg
