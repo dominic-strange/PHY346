@@ -1,0 +1,916 @@
+#final available micro model build, doesn't work as intended
+
+import numpy as np
+import matplotlib.pyplot as plt
+from operator import itemgetter
+#version to provide explanation of vehicle movement every second
+#recommend to kepp dt to 1 second
+def cars_move_explain(v_min, v_max, dt, num, v_ideal_base, tot_timeframe, Adaptive_Decel):
+    crash_num = 0  #set number of crashes at the very start of simulation     
+    #Initialises car information randomly, with each car given an ordered number tag, starting velocity, position, lane.
+    #This ordered number tag corresponds to the geographic position, with car 1 being the car furthest from the origin of 0km.
+    order = [x for x in range(1, num+1)]
+    vel = []
+    position = []
+    lane = []
+    veh_len = []
+    available_lengths = [0.0045, 0.0055, 0.018] #lengths to simulate car, van and lorry
+    for i in range(0, num):
+        v0 = np.random.randint(v_min, v_max) #km/h #initial velocity
+        x0 = np.random.randint(0,10000)/1000 #km #initial position
+        L = np.random.choice(3, 1, p=[0.6, 0.3, 0.1]) + 1 #chooses lane from discrete probability distribution
+        length = np.random.choice(available_lengths, 1, p=[0.8, 0.1, 0.1]) #chooses vehicle length from discrete probability distribution
+        vel.append(v0)
+        position.append(x0)
+        lane.append(L)
+        veh_len.append(length)
+    #combines velocity, position lane and vehicle length data into single multi-dimensional array     
+    car_info = np.column_stack((vel,position,lane,veh_len))#
+    #adds order to array then sorts by position from largest to smallest
+    #key=itemgetter(1) chooses data in column 1 of car_info (position)
+    car_info_sorted = np.column_stack((order,sorted(car_info,key=itemgetter(1),reverse=True)))
+    #car_info_sorted[:,0] = order number #unitless
+    #car_info_sorted[:,1] = velocity #km/h
+    #car_info_sorted[:,2] = position #km
+    #car_info_sorted[:,3] = lane #unitless
+    #car_info_sorted[:,4] = vehicle length #km
+    
+    #function to allow vehicles to decelerate based on the data on the vehicle infront in lane
+    #s = distance between vehicles
+    #u = initial velocity
+    #v = final velocity
+    #uses kinematic equation
+    #currently causes highly unrealistic vehicle behaviour, recommend to keep set to 'False'
+    def AdaptiveDeceleration(s,u,v):
+        
+        if Adaptive_Decel == True:
+    
+            decel = decel = ((v**2)-(u**2))/(2*s)
+
+            return decel - 1
+        elif Adaptive_Decel == False:
+            decel = -5
+            
+            return decel
+    
+    for d in range(1, tot_timeframe+1): #iterates through total timeframe specified
+        print('t = ' ,d*dt, 'seconds')
+        for j in range(0, num): #iterates through all vehicles in simulation
+            print('Car', car_info_sorted[j,0])
+            X = 0 #X counter is used to determine the difference between order numbers of two cars in the same lane
+   
+            for c in range(0, num): #iterates through every vehicle with respect to the vehicle in j for loop in question
+                if car_info_sorted[j,3] == car_info_sorted[c,3] and car_info_sorted[j,0] - car_info_sorted[c,0]  > 0:
+                    X = int(car_info_sorted[j,0] - car_info_sorted[c,0]) #X determines order difference between car j currently being considered and the next closest car in front in that lane
+                if c - j >= 0: #breaks so as not to consider cars behind car j
+                    break
+            print(X)
+            #alters ideal velocity for each lane
+            if car_info_sorted[j,3] == 1:
+                v_ideal = v_ideal_base
+            elif car_info_sorted[j,3] == 2: 
+                v_ideal = v_ideal_base + 10
+            elif car_info_sorted[j,3] == 3: 
+                v_ideal = v_ideal_base + 20 
+                
+            #if X = 0, no vehicle is in front of vehicle j, so vehicle moves based off simpler conditions
+            #each if statement will alter vehicles info based off if it satisfies that condition
+            if X == 0:
+                if car_info_sorted[j,1] < v_ideal:
+                    acc = 2 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                    print('Car is in lane', car_info_sorted[j,3])
+                    print('It accelerated as there is no car in front')
+                elif car_info_sorted[j,1] >= v_ideal + 3:
+                    acc = -5 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                    print('Car is in lane', car_info_sorted[j,3])
+                    print('It decelerated so as to not go too far over the ideal speed')
+
+                    
+                else:  
+                    acc = 0 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                    print('Car is in lane', car_info_sorted[j,3])
+                    print('It stayed at the same speed as it is at or around the ideal speed')
+                   
+                
+            elif car_info_sorted[j,1] < v_ideal:
+                if car_info_sorted[j-X,1] < v_ideal:
+                    if car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        acc = 2 #km/h/s
+                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                        print('Car is in lane', car_info_sorted[j,3])
+                        print('It accelerated as the car in front is faster')
+                      
+                    elif car_info_sorted[j-X,1] < car_info_sorted[j,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.08:
+                            acc = 2 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It accelerated as there is enough space to accelerate into despite the car in front being slower')
+                          
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.08:
+                            for q in range(0, num): #for lane to iterate through cars to see if it is safe for car j to potentially switch lanes
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                    print('Car is in lane', car_info_sorted[j,3])
+                                    print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it is unsafe to switch lanes')
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5]) #probability distribution to determine if the vehicle switches lanes
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it chose not to switch lanes')
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It switched as there is not enough space to accelerate into and the car in front is slower and it chose to switch lanes')
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it cannot change lanes to overtake')
+                                        break
+                                        
+                                        
+
+
+                elif car_info_sorted[j-X,1] >= v_ideal:
+                    if car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = 2 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It accelerated as there is enough distance to the car in front despite that car being slower')
+                        
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            acc = 0 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It stayed at the same speed as there is not enough reasonable space to accelerate into')
+                        
+
+            elif car_info_sorted[j,1] >= v_ideal + 3:
+                if car_info_sorted[j-X,1] < v_ideal:
+                    if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = -5 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It decelerated so as to not go too far over the ideal speed')
+                           
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            for q in range(0, num):
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                    print('Car is in lane', car_info_sorted[j,3])
+                                    print('It decelerated as there is not enough space to accelerate into and it is unsafe to switch lanes')
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                  
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it chose not to switch lanes')
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It switched as there is not enough space to accelerate into and the car in front is slower and it chose to switch lanes')
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it cannot change lanes to overtake')
+                                        break
+                elif car_info_sorted[j-X,1] >= v_ideal:
+                    if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = -5 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It decelerated so as to not go too far over the ideal speed')
+                            
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            for q in range(0, num):
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                    print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                    print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                    print('Car is in lane', car_info_sorted[j,3])
+                                    print('It decelerated as there is not enough space to accelerate into and it is unsafe to switch lanes')
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it chose not to switch lanes')
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It switched as there is not enough space to accelerate into and the car in front is slower and it chose to switch lanes')
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it cannot change lanes to overtake')
+                                        break
+                               
+                    elif car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        acc = -5 #km/h/s
+                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                        print('Car is in lane', car_info_sorted[j,3])
+                        print('It decelerated so as to not go too far over the ideal speed')
+                
+                elif v_ideal <= car_info_sorted[j,1] <= v_ideal + 3:
+                    if car_info_sorted[j-X,1] < v_ideal:
+                        if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                            if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                                acc = 0 #km/h/s
+                                car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                print('Car is in lane', car_info_sorted[j,3])
+                                print('It stayed at the same speed as it is at the ideal speed')
+
+                            elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                                for q in range(0, num):
+                                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and it is unsafe to switch lanes')
+                                        break
+                                    else:
+                                        prob = np.random.choice(2, 1, p=[0.5, 0.5])
+
+                                        if prob == 0:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it chose not to switch lanes')
+                                            break
+                                        elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                            acc = 0 #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It switched as there is not enough space to accelerate into and the car in front is slower and it chose to switch lanes')
+                                            break
+                                        else:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it cannot change lanes to overtake')
+                                            break
+                    elif car_info_sorted[j-X,1] >= v_ideal:
+                        if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                            if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                                acc = 0 #km/h/s
+                                car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                print('Car is in lane', car_info_sorted[j,3])
+                                print('It stayed at the same speed as it is at the ideal speed')
+
+                            elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                                for q in range(0, num):
+                                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                        print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                        print('Car is in lane', car_info_sorted[j,3])
+                                        print('It decelerated as there is not enough space to accelerate into and it is unsafe to switch lanes')
+                                        break
+                                    else:
+                                        prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                        if prob == 0:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it chose not to switch lanes')
+                                            break
+                                        elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                            acc = 0 #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It switched as there is not enough space to accelerate into and the car in front is slower and it chose to switch lanes')
+                                            break
+                                        else:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                                            print('Car is in lane', car_info_sorted[j,3])
+                                            print('It decelerated as there is not enough space to accelerate into and the car in front is slower and it cannot change lanes to overtake')
+                                            break
+
+                        elif car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                            acc = 0 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                            print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                            print('Car is in lane', car_info_sorted[j,3])
+                            print('It stayed at the same speed as it is at the ideal speed')            
+            else: #shows if the logic above has failed to affect a simulated vehicle
+                print(car_info_sorted[j,1], 'Velocity at t=', d*dt, 'seconds')
+                print(car_info_sorted[j,2], 'Position at t=', d*dt, 'seconds')
+                print('GLITCH: CAR HAS NOT MOVED')
+                
+            for q in range(0, num): #for loop considering ability to switch lanes without an obvious stimulus, e.g. slower car in front
+                if car_info_sorted[j,3] == 1:
+                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                        print('Unsafe to switch to quicker lane')
+                        break
+                    else:
+                        prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                            print('Car moved to quicker lane')
+                            break
+                        elif prob == 1:
+                            print('Car chose not to switch lanes')
+                            break
+                
+                    
+                elif car_info_sorted[j,3] == 2:
+                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] - 1):
+                        print('Unsafe to switch to slower lane')
+                        
+                        if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):   
+                            print('Unsafe to switch to quicker lane')
+                            print('Unsafe to switch to either lane')
+                            break
+                        else: 
+                            prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                            if prob == 0:
+                                car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                print('Car moved to faster lane')
+                                break
+                            elif prob == 1:
+                                print('Car chose not to switch lanes')
+                                break
+                    elif car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                        print('Unsafe to switch to faster lane')
+                        prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                            print('Car moved to slower lane')
+                            break
+                        elif prob == 1:
+                            print('Car chose not to switch lanes')
+                            break
+                        
+                    
+                    
+                    else:
+                        prob = np.random.choice(3, 1, p=[0.05, 0.05, 0.90])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                            print('Car moved to slower lane')
+                            break
+                        elif prob == 1:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                            print('Car moved to faster lane')
+                            break
+                        elif prob == 2:
+                            print('Car chose not to switch lanes')
+                            break
+                elif car_info_sorted[j,3] == 3:
+                     if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] - 1):
+                        print('Unsafe to switch to slower lane')
+                        break
+                     else:
+                         prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                         if prob == 0:
+                             car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                             print('Car moved to slower lane')
+                             break
+                         elif prob == 1:
+                             print('Car chose not to switch lanes')
+                             break
+    #looks through all vehicles in relation to each other to see if they occupy the same space in the simulation           
+    for g in range(0,num):
+        for h in range(0,num):
+            if car_info_sorted[g,3] == car_info_sorted[h,3]:
+                if car_info_sorted[h,2] - car_info_sorted[h,4] <= car_info_sorted[g,2] <= car_info_sorted[h,2]\
+                or car_info_sorted[h,2] - car_info_sorted[h,4] <= car_info_sorted[g,2] - car_info_sorted[h,2] <= car_info_sorted[h,2]:
+                    print('CRASH!')
+
+
+
+
+#version to output data every minute 
+#mechanically identical to version above bar output, most comments for one function apply to the other and vice-versa
+def cars_move_data(v_min, v_max, dt, num, v_ideal_base, tot_timeframe, Adaptive_Decel):
+    crash_num = 0 #set number of crashes at the very start of simulation          
+    #Initialises car information randomly, with each car given an ordered number tag, starting velocity, position, lane.
+    #This ordered number tag corresponds to the geographic position, with car 1 being the car furthest from the origin of 0km.
+    order = [x for x in range(1, num+1)]
+    vel = []
+    position = []
+    lane = []
+    vehicle_length = []
+    veh_len = []
+    available_lengths = [0.0045, 0.0055, 0.018]
+    for i in range(0, num):
+        v0 = np.random.randint(v_min, v_max) #km/h
+        x0 = np.random.randint(0,10000)/1000 #km
+        L = np.random.choice(3, 1, p=[0.6, 0.3, 0.1]) + 1
+        length = np.random.choice(available_lengths, 1, p=[0.8, 0.1, 0.1])
+        vel.append(v0)
+        position.append(x0)
+        lane.append(L)
+        veh_len.append(length)
+    #combines velocity, position lane and vehicle length data into single multi-dimensional array
+    car_info = np.column_stack((vel,position,lane,veh_len))
+    #adds order to array then sorts by position from largest to smallest
+    #key=itemgetter(1) chooses data in column 1 of car_info (position)
+    car_info_sorted = np.column_stack((order,sorted(car_info,key=itemgetter(1),reverse=True)))
+    #car_info_sorted[:,0] = order number #unitless
+    #car_info_sorted[:,1] = velocity #km/h
+    #car_info_sorted[:,2] = position #km
+    #car_info_sorted[:,3] = lane #unitless
+    #car_info_sorted[:,4] = vehicle length #km
+    
+    def AdaptiveDeceleration(s,u,v):
+        
+        if Adaptive_Decel == True:
+    
+            decel = decel = ((v**2)-(u**2))/(2*s)
+
+            return decel - 1
+        elif Adaptive_Decel == False:
+            decel = -5
+            
+            return decel
+    
+    for d in range(1, tot_timeframe+1):
+        
+        for j in range(0, num):
+            
+            X = 0
+            for c in range(0, num):
+                if car_info_sorted[j,3] == car_info_sorted[c,3] and car_info_sorted[j,0] - car_info_sorted[c,0]  > 0:
+                    X = int(car_info_sorted[j,0] - car_info_sorted[c,0]) #X determines order difference between car j currently being considered and the next closest car in front in that lane
+                if c - j >= 0:
+                    break
+            
+            
+            if car_info_sorted[j,3] == 1:
+                v_ideal = v_ideal_base
+            elif car_info_sorted[j,3] == 2: 
+                v_ideal = v_ideal_base + 10
+            elif car_info_sorted[j,3] == 3: 
+                v_ideal = v_ideal_base + 20 
+                
+                
+            if X == 0:
+                if car_info_sorted[j,1] < v_ideal:
+                    acc = 2 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    
+                elif car_info_sorted[j,1] >= v_ideal + 3:
+                    acc = -5 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    
+
+                    
+                else:  
+                    acc = 0 #km/h/s
+                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                    
+                   
+                
+            elif car_info_sorted[j,1] < v_ideal:
+                if car_info_sorted[j-X,1] < v_ideal:
+                    if car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        acc = 2 #km/h/s
+                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                        
+                      
+                    elif car_info_sorted[j-X,1] < car_info_sorted[j,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.08:
+                            acc = 2 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            
+                          
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.08:
+                            for q in range(0, num):
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                  
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                       
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                      
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],dt) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        
+                                        break
+                                        
+                                        
+
+
+                elif car_info_sorted[j-X,1] >= v_ideal:
+                    if car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = 2 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                           
+                        
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            acc = 0 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                           
+                        
+
+            elif car_info_sorted[j,1] >= v_ideal + 3:
+                if car_info_sorted[j-X,1] < v_ideal:
+                    if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = -5 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            
+                           
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            for q in range(0, num):
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                    
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                  
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                        
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                       
+                                        break
+                elif car_info_sorted[j-X,1] >= v_ideal: 
+                    if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                        if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                            acc = -5 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                            
+                            
+                        elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                            for q in range(0, num):
+                                if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                    acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                    car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                    car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                    
+                                    break
+                                else:
+                                    prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                    if prob == 0:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        
+                                        break
+                                    elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                        acc = 0 #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                        
+                                        break
+                                    else:
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        
+                                        break
+                               
+                    elif car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                        acc = -5 #km/h/s
+                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                       
+                else:
+                    if car_info_sorted[j-X,1] < v_ideal:
+                        if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                            if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                                acc = 0 #km/h/s
+                                car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                
+
+                            elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                                for q in range(0, num):
+                                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                        
+                                        break
+                                    else:
+                                        prob = np.random.choice(2, 1, p=[0.5, 0.5])
+
+                                        if prob == 0:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            
+                                            break
+                                        elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                            acc = 0 #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                            
+                                            break
+                                        else:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                           
+                                            break
+                    elif car_info_sorted[j-X,1] >= v_ideal:
+                        if car_info_sorted[j,1] > car_info_sorted[j-X,1]:
+                            if car_info_sorted[j-X,2] - car_info_sorted[j,2] > 0.04:
+                                acc = 0 #km/h/s
+                                car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                
+
+                            elif car_info_sorted[j-X,2] - car_info_sorted[j,2] <= 0.04: 
+                                for q in range(0, num):
+                                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                                        acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                        car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                        car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                      
+                                        break
+                                    else:
+                                        prob = np.random.choice(2, 1, p=[0.5, 0.5])
+                                        if prob == 0:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            
+                                            break
+                                        elif prob == 1 and car_info_sorted[j,3] == 1 or car_info_sorted[j,3] == 2:
+                                            acc = 0 #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                           
+                                            break
+                                        else:
+                                            acc = AdaptiveDeceleration(car_info_sorted[j-X,2] - car_info_sorted[j-X,4] - car_info_sorted[j,2],car_info_sorted[j,1],car_info_sorted[j-X,1]) #km/h/s
+                                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                            
+                                            break
+
+                        elif car_info_sorted[j-X,1] >= car_info_sorted[j,1]:
+                            acc = 0 #km/h/s
+                            car_info_sorted[j,1] = car_info_sorted[j,1] + acc*dt
+                            car_info_sorted[j,2] = car_info_sorted[j,2] + car_info_sorted[j,1]*dt/3600 + 0.5*acc*dt*dt/3600 #3600 to account for dimensions
+                                      
+                        
+            for q in range(0, num): #for loop considering ability to switch lanes without an obvious stimulus, e.g. slower car in front
+                if car_info_sorted[j,3] == 1:
+                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                        
+                        break
+                    else:
+                        prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                            
+                            break
+                        elif prob == 1:
+                            
+                            break
+                
+                    
+                elif car_info_sorted[j,3] == 2:
+                    if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] - 1):
+                        
+                        
+                        if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):   
+                            
+                            break
+                        else: 
+                            prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                            if prob == 0:
+                                car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                                
+                                break
+                            elif prob == 1:
+                                
+                                break
+                    elif car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] + 1):
+                
+                        prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                           
+                            break
+                        elif prob == 1:
+                            
+                            break
+                        
+                    
+                    
+                    else:
+                        prob = np.random.choice(3, 1, p=[0.05, 0.05, 0.90])
+                        if prob == 0:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                          
+                            break
+                        elif prob == 1:
+                            car_info_sorted[j,3] = car_info_sorted[j,3] + 1
+                         
+                            break
+                        elif prob == 2:
+                          
+                            break
+                elif car_info_sorted[j,3] == 3:
+                     if car_info_sorted[q,2]-0.02 <= car_info_sorted[j,2]<= car_info_sorted[q,2]+0.02 and car_info_sorted[q,3] == (car_info_sorted[j,3] - 1):
+                        
+                        break
+                     else:
+                         prob = np.random.choice(2, 1, p=[0.05, 0.95])
+                         if prob == 0:
+                             car_info_sorted[j,3] = car_info_sorted[j,3] - 1
+                           
+                             break
+                         elif prob == 1:
+                             
+                             break
+               
+        for g in range(0,num):
+            for h in range(0,num):
+               
+                if car_info_sorted[g,0] == car_info_sorted[h,0]:
+                    break
+                if car_info_sorted[g,3] == car_info_sorted[h,3]:
+                    if car_info_sorted[h,2] - car_info_sorted[h,4] <= car_info_sorted[g,2] <= car_info_sorted[h,2]\
+                    or car_info_sorted[h,2] - car_info_sorted[h,4] <= car_info_sorted[g,2] - car_info_sorted[h,2] <= car_info_sorted[h,2]:
+                        print('CRASH! between cars', g,'and', h, 'at t = ', d,'seconds')
+                        crash_num = (crash_num + 1)
+
+        #prints data every time if statement is true (every minute for dt = 1)
+        if d*dt%60 == 0:
+            print('t = ' ,d*dt, 'seconds')
+            np.set_printoptions(precision=3, formatter = {'float': lambda x: "{0:0.4f}".format(x)})
+            print(car_info_sorted)
+            plt.plot(car_info_sorted[:,2],car_info_sorted[:,3], 'ro', markersize=2)
+            plt.show()
+    print(crash_num)
