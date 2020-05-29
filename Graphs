@@ -1,0 +1,20 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+crashes = np.array([1.6, 6.8, 28, 54.6, 94.1, 143.5])
+cars = np.array([10, 20, 30, 40, 50, 60])
+std_error = np.array([0.76, 1.44, 3.10, 4.86, 8.95, 10.51])
+
+plt.bar(cars, crashes, yerr=std_error, width=6, capsize=2)
+plt.xlabel('Number of vehicles simulated')
+plt.ylabel('Average number of crashes')
+plt.grid(True, axis = 'y')
+
+time = np.array([3.058,3.749,4.516,5.789,6.977,9.880])
+cars = np.array([10, 20, 30, 40, 50, 60])
+std_error_time = np.array([0.101,0.141,0.120,0.178,0.182,0.299])
+
+plt.plot(cars,time,'ro',markersize=4)
+plt.errorbar(cars,time,yerr=std_error_time,ecolor='black',capsize=2)
+plt.xlabel('Number of vehicles simulated')
+plt.ylabel('Average simulation run time (s)')
