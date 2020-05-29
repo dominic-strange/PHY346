@@ -1,0 +1,118 @@
+#Work by M.Clifton
+#Create model sensor array 
+#5/03/20
+#Work here unused in later model iterations
+
+import numpy as np
+from scipy import signal
+from scipy.fftpack import fft, fftshift
+import matplotlib.pyplot as plt
+import pandas as pd
+from operator import itemgetter
+
+sensor_pos = np.linspace(0, 10, num=21)
+d = sensor_pos.tolist()
+print(d)
+print(d[1])
+
+num = np.linspace(0, 20, num=21)
+print(num)
+
+#defines cars as point-like object moving at initial velocity v0 with initial starting position x0
+#function to begin initialisation of vehicles in model
+
+def cars(v_min, v_max, min, num):
+    order = [x for x in range(1, num+1)]
+    vel = []
+    position = []
+    lane = []
+    for i in range(0, num):
+        v0 = np.random.randint(v_min, v_max) #km/h
+        x0 = np.random.randint(0,10000)/1000 #km
+        L = np.random.choice(3, 1, p=[0.6, 0.3, 0.1]) + 1 #chooses lane based off discrete probability function
+        vel.append(v0)
+        position.append(x0)
+        lane.append(L)
+    #combines velocity, position and lane data into single multi-dimensional array    
+    car_info = np.column_stack((vel,position,lane)) 
+    #adds order to array then sorts by position from largest to smallest
+    #key=itemgetter(1) chooses data in column 1 of car_info (position)
+    car_info_sorted = np.column_stack((order,sorted(car_info,key=itemgetter(1),reverse=True)))
+    
+    return car_info_sorted
+        
+#begin to add vehicle movement
+def cars_move(v_min, v_max, dt, num, v_ideal, tot_timeframe):
+    vel = []
+    position = []
+    for i in range(0, num):
+        v0 = np.random.randint(v_min, v_max) #km/h
+        x0 = np.random.randint(0,10000)/1000 #km
+        vel.append(v0)
+        position.append(x0)
+    #combines velocity, position and lane data into single multi-dimensional array 
+    car_info = np.column_stack((vel,position)) 
+    car_info_sorted = np.array(sorted(car_info,key=itemgetter(1),reverse=True))
+    
+    for j in range(0, num):
+        print('Car', j+1)
+        v = car_info_sorted[j,0]
+        x = car_info_sorted[j,1]
+        if j-1 in range(0, num):
+            v_infront = car_info_sorted[j-1,0]
+            x_infront = car_info_sorted[j-1,1]
+        else:
+            v_infront = 'Not applicable'
+            x_infront = 'Not applicable'
+            print('No car in front')
+            print('')
+        
+        if v < v_ideal:
+            for d in range(0, tot_timeframe+1):
+                if v < v_ideal and v_infront < v_ideal and v_infront >= v:
+                    
+                    acc = acc_infront = 2 #km/h/s
+                    v = v + acc*dt*d
+                    x = x + v*dt*d/3600 + 0.5*acc*dt*dt*d*d/3600 #3600 to account for dimensions
+                    v_infront = v_infront + acc_infront*dt*d
+                    x_infront = x_infront + v*dt*d/3600 + 0.5*acc_infront*dt*dt*d*d/3600 #3600 to account for dimensions
+                    print(v, 'Velocity at t=', d, 'seconds')
+                    print(x, 'Position at t=', d, 'seconds')
+                    print('It accelerated')
+                    print('')
+                elif v < v_ideal and v_infront < v_ideal and v_infront < v: 
+                    acc = -5 #km/h/s
+                    acc_infront = 2 #km/h/s
+                    v = v + acc*dt*d
+                    x = x + v*dt*d/3600 + 0.5*acc*dt*dt*d*d/3600 #3600 to account for dimensions
+                    v_infront = v_infront + acc_infront*dt*d
+                    x_infront = x_infront + v*dt*d/3600 + 0.5*acc_infront*dt*dt*d*d/3600 #3600 to account for dimensions
+                    print(v, 'Velocity at t=', d, 'seconds')
+                    print(x, 'Position at t=', d, 'seconds')
+                    print('It decelerated as the car in front is slower')
+                    print('')
+                #consider revsion of d counter and continue to want to die as you think this shit up    
+                    
+                else:
+                    acc = 0 #km/h/s
+                    v = v + acc*dt*d
+                    x = x + v*dt*d/3600 + 0.5*acc*dt*dt*d*d/3600 #3600 to account for dimensions
+                    print(v, 'Velocity at t=', d, 'seconds')
+                    print(x, 'Position at t=', d, 'seconds')
+                    print('It did not accelerate')
+                    print('')
+                    
+        else:
+            for d in range(0, tot_timeframe+1):
+                acc = 0 #km/h/s
+                v = v + acc*dt*d
+                x = x + v*dt*d/3600 + 0.5*acc*dt*dt*d*d/3600 #3600 to account for dimensions
+                print(v, 'Velocity at t=', d, 'seconds')
+                print(x, 'Position at t=', d, 'seconds')
+                print('It did not accelerate')
+                print('')
+            
+        
+        
+        
+         
