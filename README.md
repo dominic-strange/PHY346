@@ -1,6 +1,6 @@
 # PHY346
 
-Progress made on development of microscopic model for PHY346. 
+Progress made on development of microscopic model for PHY346.
 Two bugs in current state regarding adaptive deceleration function and vehicle behaviour if statements (detailed in report).
 If statements responsible for vehicle movement may need overhaul to catch behaviour being missed currently by the algorithm.
 
