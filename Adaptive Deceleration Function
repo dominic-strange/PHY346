@@ -1,0 +1,10 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from operator import itemgetter
+
+def AdaptiveDeceleration(s,u,v):
+    
+    decel = ((v**2)-(u**2))/(2*s)
+    
+    return decel - 1
+    
