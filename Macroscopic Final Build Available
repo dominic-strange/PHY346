@@ -1,0 +1,144 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+from IPython.display import HTML
+from scipy.stats import norm
+%matplotlib inline
+import time
+
+
+#Function indentifying segment of road
+def segment(i,arr):
+    segment=np.zeros(((np.size(arr,axis=0)),2),dtype=float)
+    for n in [0,1]:
+        for m in range(np.size(arr,axis=0)):
+            try:
+                segment[m][n]=arr[m][i+n]
+            except:
+                pass
+    return segment
+
+
+#Constants
+u_f=u_c=112 #free flow speed = critical speed == assumed speed limit of 112 km/h
+u_j=10 #approx jam speed
+k_c=16.6 #approx critical density [veh/km/lane]
+k_j=54.7 #approx traffic jam density [veh/km/lane]
+k_c=k_c*0.5 #converted to per 500m
+k_j=k_j*0.5 
+
+
+#Simple interpretive model for speed [km/h] and density [veh/h/lane]
+def u_vs_k(i,j,arr): #speed vs density, values are from trl and using M25 data
+
+    k = arr[j][i]*k_j
+    if k <= k_c:
+        u=u_f
+    if k > k_c:
+        u=u_c-((u_c-u_j)*np.log(k/k_c))/np.log(k_j/k_c)
+    return u
+
+
+def speed_arr(arr):
+    speed_arr=np.zeros(((np.size(arr,axis=0)),((np.size(arr,axis=1)))),dtype=float) #zero array for empty scenario
+    for i in range(np.size(arr,axis=0)):
+        for j in range(np.size(arr,axis=1)):
+            speed_arr[i,j]=u_vs_k(j,i,arr) #inserts data j+1 (x-axis) along to show flow
+    return speed_arr
+
+
+def speed_to_dens(u):
+    k=k_c*np.exp((np.log(k_j/k_c))*(u_c-u)/(u_c-u_j))
+    return k/k_j
+#Conditions for traffic flow
+def rules(i,arr):
+    V=speed_arr(arr)
+    u_seg=segment(i,V)
+    dens_seg=segment(i,arr)
+    tot_dens=sum(arr[:,i])
+    for n in [0,1,2]:
+        if u_seg[n,0] < 112:
+            S=np.random.normal(0.5,0.1) #normal distribution to simulate a stochastic model for lane changing
+            del_dens=speed_to_dens(u_seg[n,0])-(k_c/k_j)
+            del_dens=del_dens*S
+            dens_seg[n,0]-del_dens
+            if n==0:
+                dens_seg[1,0]+=del_dens
+            if n==1:
+                dens_seg[0,0]+=del_dens*0.5
+                dens_seg[2,0]+=del_dens*0.5
+            if n==2:
+                dens_seg[1,0]+=del_dens
+    return dens_seg
+
+
+def new_array(arr):
+    """takes an array, makes a zero copy of it and then inserts new elements based on rules outcome"""
+    new_array=np.zeros(((np.size(arr,axis=0)),((np.size(arr,axis=1)))),dtype=float) #zero array for empty scenario
+    for j in range(np.size(arr,axis=1)):
+        for i in range(np.size(arr,axis=0)):
+            try:
+                new_array[i,j+1]=rules(j,arr)[i,0] #inserts data j+1 (x-axis) along to show flow
+                new_array[i,0]=np.random.random() #inserts random data
+            except: 
+                pass
+    return new_array
+
+
+def frames(arr,frames):
+    """produces an 3D array of new arrays to show change over time """
+    frame_arr=np.array([arr])
+    for i in range(frames):
+        arr=new_array(arr)
+        frame_arr=np.concatenate((np.array(frame_arr),np.array([arr])),axis=0)
+    return frame_arr
+
+
+#Set the size of the produced figure
+plt.rcParams['figure.figsize'] = 6, 4
+#Set up the matplotlib animation
+import matplotlib.animation as animation
+plt.rcParams["animation.html"] = "html5"
+
+
+#ArtistAnimation
+def animateArtist(arr,no_frames,inputInterval):
+    fig = plt.figure()
+
+    #List of frames
+    ims = []
+    for i in frames(arr,no_frames):
+        im = plt.imshow(i, cmap='Reds', animated=True)
+        ims.append([im])
+
+
+    plt.close()
+    #create the animation 
+    anim=animation.ArtistAnimation(fig, ims, interval=inputInterval,blit=True)
+    display(anim)
+    pass
+
+
+l = 500 #distance between sensors [m]
+L = 5000 #Length of road [m]
+
+def lane_size(tot_len,sens_gap,lanes):
+    cells=tot_len//sens_gap
+    road=np.random.random((lanes,cells))
+    return road
+
+
+road=lane_size(10000,500,3)
+
+
+animateArtist(road,40,400)
+
+
+#Code below is what is used to make a plot in macroscopic modelling
+road_sample=frames(road,2)
+
+plt.imshow(road_sample[0],cmap='Reds',interpolation='nearest')
+plt.savefig('road_sample_frame_0', bbox_inches='tight')
+
+plt.imshow(road_sample[1],cmap='Reds',interpolation='nearest')
+plt.savefig('road_sample_frame_1', bbox_inches='tight')
